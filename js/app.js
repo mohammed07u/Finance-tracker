@@ -11,7 +11,7 @@
    4. Copy the Web App URL and paste it below as SCRIPT_URL.
    ========================================================= */
 
-const SCRIPT_URL = "PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw1szh3DweTM_1e-kW1RhKyS8_WWqLpW0GcLEkovvYf7nB8giF-0ZSOIhv2--7Kx3QUMA/exec";
 
 const CATEGORY_COLORS = {
   Food: "#C9A227",
