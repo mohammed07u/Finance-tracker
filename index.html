@@ -1,12 +1,116 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Finance Tracker</title>
-  </head>
-  <body style="margin:0;">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Passbook — Finance Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark">§</span>
+        <span class="brand-name">Passbook</span>
+      </div>
+      <div class="sync-status" id="syncStatus">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncText">Connecting to sheet…</span>
+      </div>
+    </header>
+
+    <main class="layout">
+
+      <!-- Left: balance + breakdown -->
+      <section class="panel panel-balance">
+        <p class="panel-label">Current balance</p>
+        <h1 class="balance-figure" id="balanceFigure">₹0.00</h1>
+
+        <div class="mini-stats">
+          <div class="mini-stat">
+            <span class="mini-stat-label">In</span>
+            <span class="mini-stat-value in" id="totalIncome">₹0.00</span>
+          </div>
+          <div class="mini-stat">
+            <span class="mini-stat-label">Out</span>
+            <span class="mini-stat-value out" id="totalExpense">₹0.00</span>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="breakdownChart" width="220" height="220"></canvas>
+          <div class="chart-empty" id="chartEmpty">No entries yet</div>
+        </div>
+
+        <ul class="legend" id="categoryLegend"></ul>
+      </section>
+
+      <!-- Right: form + ledger -->
+      <section class="panel panel-ledger">
+
+        <form class="entry-form" id="entryForm">
+          <div class="field field-desc">
+            <label for="fDesc">Description</label>
+            <input type="text" id="fDesc" placeholder="Groceries, salary, rent…" required>
+          </div>
+
+          <div class="field field-amount">
+            <label for="fAmount">Amount</label>
+            <input type="number" id="fAmount" placeholder="0.00" step="0.01" min="0.01" required>
+          </div>
+
+          <div class="field field-category">
+            <label for="fCategory">Category</label>
+            <select id="fCategory">
+              <option>Food</option>
+              <option>Transport</option>
+              <option>Bills</option>
+              <option>Shopping</option>
+              <option>Health</option>
+              <option>Salary</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div class="field field-type">
+            <label>Type</label>
+            <div class="toggle" id="typeToggle">
+              <button type="button" class="toggle-option active" data-type="expense">Expense</button>
+              <button type="button" class="toggle-option" data-type="income">Income</button>
+            </div>
+          </div>
+
+          <button type="submit" class="submit-btn" id="submitBtn">
+            <span>Add entry</span>
+          </button>
+        </form>
+
+        <div class="ledger-head">
+          <span class="ledger-title">Ledger</span>
+          <span class="ledger-count" id="entryCount">0 entries</span>
+        </div>
+
+        <div class="ledger-rows" id="ledgerRows">
+          <div class="ledger-skeleton" id="ledgerSkeleton">
+            <div class="skel-row"></div>
+            <div class="skel-row"></div>
+            <div class="skel-row"></div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/app.js"></script>
+</body>
 </html>
