@@ -1,315 +1,311 @@
-/* =========================================================
-   Passbook — Finance Tracker
-   Backend: Google Sheets via a Google Apps Script Web App
-   ---------------------------------------------------------
-   1. Open Google Sheets, create a sheet with header row:
-      ID | Date | Description | Category | Type | Amount
-   2. Extensions > Apps Script, paste apps-script/Code.gs
-   3. Deploy > New deployment > Web app
-        - Execute as: Me
-        - Who has access: Anyone
-   4. Copy the Web App URL and paste it below as SCRIPT_URL.
-   ========================================================= */
-
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw1szh3DweTM_1e-kW1RhKyS8_WWqLpW0GcLEkovvYf7nB8giF-0ZSOIhv2--7Kx3QUMA/exec";
+// ============================================================
+// CONFIG — paste your Apps Script Web App URL here.
+// It must end in /exec (not /dev), and the deployment's
+// "Who has access" must be set to "Anyone".
+// ============================================================
+const CONFIG = {
+  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbw1szh3DweTM_1e-kW1RhKyS8_WWqLpW0GcLEkovvYf7nB8giF-0ZSOIhv2--7Kx3QUMA/exec",
+  REQUEST_TIMEOUT_MS: 12000,
+};
 
 const CATEGORY_COLORS = {
-  Food: "#C9A227",
-  Transport: "#2F4B3C",
-  Bills: "#A6522C",
-  Shopping: "#7D8F5B",
-  Health: "#5C7A99",
-  Salary: "#3E6350",
-  Other: "#8A7E6A"
+  Food: "#c9932e",
+  Transport: "#3f7d63",
+  Bills: "#b5562e",
+  Shopping: "#7a6ba8",
+  Health: "#3f7fa6",
+  Salary: "#2f6b4f",
+  Other: "#8a8375",
 };
 
-const state = {
-  entries: [],
-  type: "expense",
-  loading: true
-};
-
-const el = {
-  syncDot: document.getElementById("syncDot"),
-  syncText: document.getElementById("syncText"),
-  balanceFigure: document.getElementById("balanceFigure"),
-  totalIncome: document.getElementById("totalIncome"),
-  totalExpense: document.getElementById("totalExpense"),
-  legend: document.getElementById("categoryLegend"),
+const els = {
+  statusBar: document.getElementById("statusBar"),
+  statusText: document.getElementById("statusText"),
+  retryBtn: document.getElementById("retryBtn"),
+  balance: document.getElementById("balance"),
+  totalIn: document.getElementById("totalIn"),
+  totalOut: document.getElementById("totalOut"),
+  chartCanvas: document.getElementById("categoryChart"),
   chartEmpty: document.getElementById("chartEmpty"),
+  chartLegend: document.getElementById("chartLegend"),
   form: document.getElementById("entryForm"),
-  fDesc: document.getElementById("fDesc"),
-  fAmount: document.getElementById("fAmount"),
-  fCategory: document.getElementById("fCategory"),
-  typeToggle: document.getElementById("typeToggle"),
+  description: document.getElementById("description"),
+  amount: document.getElementById("amount"),
+  category: document.getElementById("category"),
+  typeBtns: Array.from(document.querySelectorAll(".type-btn")),
   submitBtn: document.getElementById("submitBtn"),
-  ledgerRows: document.getElementById("ledgerRows"),
-  ledgerSkeleton: document.getElementById("ledgerSkeleton"),
+  ledgerList: document.getElementById("ledgerList"),
+  ledgerEmpty: document.getElementById("ledgerEmpty"),
   entryCount: document.getElementById("entryCount"),
-  toast: document.getElementById("toast")
 };
 
-let chart = null;
+let entries = [];
+let currentType = "expense";
 
-/* ---------------- utils ---------------- */
+// ---------- networking helper with a real timeout ----------
+async function callScript({ method = "GET", action, body }) {
+  if (!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.includes("PASTE_YOUR")) {
+    throw new Error("No Apps Script URL configured yet — paste it into CONFIG.SCRIPT_URL in js/app.js.");
+  }
 
-function formatMoney(n){
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT_MS);
+
+  try {
+    let url = CONFIG.SCRIPT_URL;
+    const opts = { method, signal: controller.signal };
+
+    if (method === "GET") {
+      url += `?action=${encodeURIComponent(action)}`;
+    } else {
+      // text/plain avoids a CORS preflight against Apps Script
+      opts.headers = { "Content-Type": "text/plain;charset=utf-8" };
+      opts.body = JSON.stringify({ action, ...body });
+    }
+
+    const res = await fetch(url, opts);
+
+    if (!res.ok) {
+      throw new Error(`Script responded with HTTP ${res.status}. Check the deployment is live and set to "Anyone" access.`);
+    }
+
+    const data = await res.json().catch(() => {
+      throw new Error("Script responded but not with JSON — check Code.gs is deployed as a Web App, not left as a plain script.");
+    });
+
+    if (!data || data.ok === false) {
+      throw new Error(data && data.error ? data.error : "Script returned an error with no details.");
+    }
+    return data;
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(`No response after ${CONFIG.REQUEST_TIMEOUT_MS / 1000}s — the script URL is likely wrong, undeployed, or unreachable.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// ---------- status bar ----------
+function setStatus(state, message) {
+  els.statusBar.classList.remove("ok", "error");
+  if (state === "ok") els.statusBar.classList.add("ok");
+  if (state === "error") els.statusBar.classList.add("error");
+  els.statusText.textContent = message;
+  els.retryBtn.classList.toggle("hidden", state !== "error");
+}
+
+// ---------- init / connection ----------
+async function init() {
+  setStatus("connecting", "Connecting to sheet…");
+  renderSkeleton();
+  try {
+    await callScript({ method: "GET", action: "ping" });
+    setStatus("ok", "Synced with Google Sheet");
+    await loadEntries();
+  } catch (err) {
+    console.error(err);
+    setStatus("error", "Couldn't connect to the sheet");
+    showConnectionError(err.message);
+  }
+}
+
+function showConnectionError(message) {
+  els.ledgerList.innerHTML = "";
+  const banner = document.createElement("div");
+  banner.className = "error-banner";
+  banner.innerHTML = `<strong>Connection failed</strong>${escapeHtml(message)}`;
+  els.ledgerList.appendChild(banner);
+  els.ledgerEmpty.classList.add("hidden");
+  els.entryCount.textContent = "—";
+}
+
+els.retryBtn.addEventListener("click", init);
+
+async function loadEntries() {
+  try {
+    const data = await callScript({ method: "GET", action: "list" });
+    entries = (data.entries || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    renderAll();
+  } catch (err) {
+    console.error(err);
+    setStatus("error", "Lost connection to the sheet");
+    showConnectionError(err.message);
+  }
+}
+
+// ---------- render ----------
+function renderSkeleton() {
+  els.ledgerList.innerHTML = "";
+  for (let i = 0; i < 3; i++) {
+    const li = document.createElement("li");
+    li.className = "skeleton-row";
+    els.ledgerList.appendChild(li);
+  }
+}
+
+function renderAll() {
+  renderLedger();
+  renderTotals();
+  renderChart();
+}
+
+function formatMoney(n) {
   const v = Number(n) || 0;
   return "₹" + v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function animateNumber(elm, from, to, prefix = "₹"){
-  const duration = 600;
-  const start = performance.now();
-  function tick(now){
-    const p = Math.min(1, (now - start) / duration);
-    const eased = 1 - Math.pow(1 - p, 3);
-    const val = from + (to - from) * eased;
-    elm.textContent = prefix + val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (p < 1) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
+function renderTotals() {
+  const totalIn = entries.filter(e => e.type === "income").reduce((s, e) => s + Number(e.amount), 0);
+  const totalOut = entries.filter(e => e.type === "expense").reduce((s, e) => s + Number(e.amount), 0);
+  const balance = totalIn - totalOut;
+
+  els.totalIn.textContent = formatMoney(totalIn);
+  els.totalOut.textContent = formatMoney(totalOut);
+  els.balance.textContent = formatMoney(balance);
+  els.balance.classList.remove("flash");
+  void els.balance.offsetWidth; // restart animation
+  els.balance.classList.add("flash");
 }
 
-function showToast(message, isError = false){
-  el.toast.textContent = message;
-  el.toast.classList.toggle("error", isError);
-  el.toast.classList.add("show");
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => el.toast.classList.remove("show"), 2600);
-}
+function renderLedger() {
+  els.ledgerList.innerHTML = "";
+  els.entryCount.textContent = `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`;
+  els.ledgerEmpty.classList.toggle("hidden", entries.length > 0);
 
-function setSyncStatus(live, text){
-  el.syncDot.classList.toggle("live", live);
-  el.syncText.textContent = text;
-}
-
-function uid(){
-  return "id_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-/* ---------------- API ---------------- */
-
-async function apiGet(){
-  const res = await fetch(`${SCRIPT_URL}?action=list`, { method: "GET" });
-  if (!res.ok) throw new Error("Failed to load sheet data");
-  return res.json();
-}
-
-// Sent as text/plain to avoid a CORS preflight against Apps Script.
-async function apiPost(payload){
-  const res = await fetch(SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) throw new Error("Failed to reach sheet");
-  return res.json();
-}
-
-/* ---------------- rendering ---------------- */
-
-function computeTotals(){
-  let income = 0, expense = 0;
-  const byCategory = {};
-  state.entries.forEach(e => {
-    const amt = Number(e.amount) || 0;
-    if (e.type === "income") income += amt;
-    else {
-      expense += amt;
-      byCategory[e.category] = (byCategory[e.category] || 0) + amt;
-    }
-  });
-  return { income, expense, balance: income - expense, byCategory };
-}
-
-function renderSummary(prevBalance){
-  const { income, expense, balance, byCategory } = computeTotals();
-
-  animateNumber(el.balanceFigure, prevBalance, balance);
-  el.balanceFigure.classList.toggle("negative", balance < 0);
-  animateNumber(el.totalIncome, 0, income);
-  animateNumber(el.totalExpense, 0, expense);
-
-  renderChart(byCategory);
-  renderLegend(byCategory);
-
-  return balance;
-}
-
-function renderLegend(byCategory){
-  el.legend.innerHTML = "";
-  const entries = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
-  entries.forEach(([cat, amt]) => {
+  entries.forEach(entry => {
     const li = document.createElement("li");
+    li.className = "ledger-row";
+    li.dataset.id = entry.id;
+
+    const sign = entry.type === "income" ? "+" : "−";
+    const dateStr = entry.timestamp ? new Date(entry.timestamp).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "";
+
     li.innerHTML = `
-      <span class="legend-key">
-        <span class="legend-swatch" style="background:${CATEGORY_COLORS[cat] || "#8A7E6A"}"></span>
-        ${cat}
-      </span>
-      <span class="legend-amount">${formatMoney(amt)}</span>
+      <div class="row-main">
+        <p class="row-desc">${escapeHtml(entry.description)}</p>
+        <p class="row-meta">${escapeHtml(entry.category)} · ${dateStr}</p>
+      </div>
+      <div class="row-amount ${entry.type === "income" ? "in" : "out"}">${sign} ${formatMoney(entry.amount)}</div>
+      <button class="row-delete" title="Delete" aria-label="Delete entry">✕</button>
     `;
-    el.legend.appendChild(li);
+
+    li.querySelector(".row-delete").addEventListener("click", () => handleDelete(entry.id, li));
+    els.ledgerList.appendChild(li);
   });
 }
 
-function renderChart(byCategory){
-  const labels = Object.keys(byCategory);
-  const values = Object.values(byCategory);
-  const colors = labels.map(l => CATEGORY_COLORS[l] || "#8A7E6A");
+function renderChart() {
+  const ctx = els.chartCanvas.getContext("2d");
+  const size = els.chartCanvas.width;
+  ctx.clearRect(0, 0, size, size);
 
-  el.chartEmpty.classList.toggle("show", labels.length === 0);
-
-  const ctx = document.getElementById("breakdownChart").getContext("2d");
-  if (chart) chart.destroy();
-  if (labels.length === 0) return;
-
-  chart = new Chart(ctx, {
-    type: "doughnut",
-    data: {
-      labels,
-      datasets: [{
-        data: values,
-        backgroundColor: colors,
-        borderColor: "#FBF7EE",
-        borderWidth: 3,
-        hoverOffset: 6
-      }]
-    },
-    options: {
-      cutout: "68%",
-      animation: { animateRotate: true, duration: 700 },
-      plugins: { legend: { display: false }, tooltip: { enabled: true } }
-    }
+  const byCategory = {};
+  entries.filter(e => e.type === "expense").forEach(e => {
+    byCategory[e.category] = (byCategory[e.category] || 0) + Number(e.amount);
   });
+
+  const total = Object.values(byCategory).reduce((a, b) => a + b, 0);
+  els.chartEmpty.classList.toggle("hidden", total > 0);
+  els.chartLegend.innerHTML = "";
+
+  if (total === 0) return;
+
+  const cx = size / 2, cy = size / 2, rOuter = size / 2 - 8, rInner = rOuter * 0.6;
+  let startAngle = -Math.PI / 2;
+
+  Object.entries(byCategory)
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([cat, amt]) => {
+      const slice = (amt / total) * Math.PI * 2;
+      const endAngle = startAngle + slice;
+      const color = CATEGORY_COLORS[cat] || "#8a8375";
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, rOuter, startAngle, endAngle);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      startAngle = endAngle;
+
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="legend-dot" style="background:${color}"></span>${escapeHtml(cat)} · ${Math.round((amt / total) * 100)}%`;
+      els.chartLegend.appendChild(li);
+    });
+
+  // punch the hole for the doughnut look
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.beginPath();
+  ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
 }
 
-function renderLedger(){
-  el.ledgerSkeleton.remove?.();
-  const rows = [...state.entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML;
+}
 
-  el.entryCount.textContent = `${rows.length} ${rows.length === 1 ? "entry" : "entries"}`;
-
-  if (rows.length === 0){
-    el.ledgerRows.innerHTML = `<div class="ledger-empty">No entries yet — add your first one above.</div>`;
-    return;
-  }
-
-  el.ledgerRows.innerHTML = "";
-  rows.forEach(entry => {
-    const row = document.createElement("div");
-    row.className = "ledger-row";
-    row.dataset.id = entry.id;
-    const dateLabel = new Date(entry.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
-    row.innerHTML = `
-      <span class="row-date">${dateLabel}</span>
-      <span class="row-main">
-        <span class="row-desc">${escapeHtml(entry.description)}</span>
-        <span class="row-category">${escapeHtml(entry.category)}</span>
-      </span>
-      <span class="row-amount ${entry.type}">${entry.type === "income" ? "+" : "−"}${formatMoney(entry.amount)}</span>
-      <button class="row-delete" title="Delete" data-id="${entry.id}">✕</button>
-    `;
-    el.ledgerRows.appendChild(row);
+// ---------- type toggle ----------
+els.typeBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentType = btn.dataset.type;
+    els.typeBtns.forEach(b => b.classList.toggle("active", b === btn));
   });
-}
-
-function escapeHtml(str = ""){
-  return str.replace(/[&<>"']/g, s => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[s]));
-}
-
-/* ---------------- events ---------------- */
-
-el.typeToggle.addEventListener("click", (e) => {
-  const btn = e.target.closest(".toggle-option");
-  if (!btn) return;
-  state.type = btn.dataset.type;
-  [...el.typeToggle.children].forEach(b => b.classList.toggle("active", b === btn));
 });
 
-el.form.addEventListener("submit", async (e) => {
+// ---------- add entry ----------
+els.form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const description = el.fDesc.value.trim();
-  const amount = parseFloat(el.fAmount.value);
-  const category = el.fCategory.value;
-  if (!description || !amount || amount <= 0) return;
 
   const entry = {
-    id: uid(),
-    date: new Date().toISOString(),
-    description,
-    category,
-    type: state.type,
-    amount
+    description: els.description.value.trim(),
+    amount: parseFloat(els.amount.value),
+    category: els.category.value,
+    type: currentType,
   };
+  if (!entry.description || !entry.amount || entry.amount <= 0) return;
 
-  el.submitBtn.disabled = true;
-  const prevBalance = computeTotals().balance;
-
-  // optimistic update
-  state.entries.push(entry);
-  renderLedger();
-  renderSummary(prevBalance);
-  el.form.reset();
-  el.fCategory.value = category;
-
+  setSubmitting(true);
   try {
-    await apiPost({ action: "add", entry });
-    showToast("Entry saved to your sheet");
-  } catch (err){
-    state.entries = state.entries.filter(x => x.id !== entry.id);
-    renderLedger();
-    renderSummary(computeTotals().balance);
-    showToast("Couldn't save — check your Apps Script URL", true);
+    const data = await callScript({ method: "POST", action: "add", body: { entry } });
+    entries.unshift(data.entry || { ...entry, id: Date.now(), timestamp: new Date().toISOString() });
+    renderAll();
+    els.form.reset();
+    els.amount.value = "";
+    els.description.focus();
+  } catch (err) {
+    console.error(err);
+    setStatus("error", "Couldn't save — sheet unreachable");
+    showConnectionError(err.message);
   } finally {
-    el.submitBtn.disabled = false;
+    setSubmitting(false);
   }
 });
 
-el.ledgerRows.addEventListener("click", async (e) => {
-  const btn = e.target.closest(".row-delete");
-  if (!btn) return;
-  const id = btn.dataset.id;
-  const rowEl = btn.closest(".ledger-row");
-  const removed = state.entries.find(x => x.id === id);
-  const prevBalance = computeTotals().balance;
+function setSubmitting(isSubmitting) {
+  els.submitBtn.disabled = isSubmitting;
+  els.submitBtn.querySelector(".submit-spinner").classList.toggle("hidden", !isSubmitting);
+}
 
+// ---------- delete entry ----------
+async function handleDelete(id, rowEl) {
   rowEl.classList.add("removing");
-  setTimeout(() => {
-    state.entries = state.entries.filter(x => x.id !== id);
-    renderLedger();
-    renderSummary(prevBalance);
-  }, 200);
-
   try {
-    await apiPost({ action: "delete", id });
-  } catch (err){
-    showToast("Couldn't delete on the sheet — restoring", true);
-    if (removed) state.entries.push(removed);
-    renderLedger();
-    renderSummary(computeTotals().balance);
-  }
-});
-
-/* ---------------- boot ---------------- */
-
-async function init(){
-  if (SCRIPT_URL.includes("PASTE_YOUR")){
-    setSyncStatus(false, "Add your Apps Script URL in js/app.js");
-    renderLedger();
-    renderSummary(0);
-    return;
-  }
-  try {
-    const data = await apiGet();
-    state.entries = Array.isArray(data.entries) ? data.entries : [];
-    setSyncStatus(true, "Synced with Google Sheet");
-  } catch (err){
-    setSyncStatus(false, "Offline — showing local data only");
-  } finally {
-    renderLedger();
-    renderSummary(0);
+    await callScript({ method: "POST", action: "delete", body: { id } });
+    setTimeout(() => {
+      entries = entries.filter(e => String(e.id) !== String(id));
+      renderAll();
+    }, 200);
+  } catch (err) {
+    console.error(err);
+    rowEl.classList.remove("removing");
+    setStatus("error", "Couldn't delete — sheet unreachable");
   }
 }
 
-document.addEventListener("DOMContentLoaded", init);
+init();

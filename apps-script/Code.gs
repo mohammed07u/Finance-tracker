@@ -1,22 +1,18 @@
-/**
- * Passbook — Finance Tracker backend
- * Uses a Google Sheet as the database.
- *
- * SETUP
- * 1. Create a Google Sheet. Rename the first tab "Transactions".
- * 2. In row 1, add headers exactly:
- *    ID | Date | Description | Category | Type | Amount
- * 3. Extensions > Apps Script, delete any starter code, paste this file.
- * 4. Deploy > New deployment > select type "Web app".
- *      - Description: passbook-api
- *      - Execute as: Me
- *      - Who has access: Anyone
- * 5. Copy the resulting /exec URL into SCRIPT_URL in js/app.js.
- * 6. Whenever you edit this script, re-deploy (Manage deployments > Edit > New version).
- */
+// ============================================================
+// Passbook — Google Apps Script backend
+// Deploy: Extensions > Apps Script > paste this in > Deploy >
+// New deployment > Web app > Execute as: Me > Who has access: Anyone
+// Copy the /exec URL it gives you into js/app.js CONFIG.SCRIPT_URL.
+//
+// IMPORTANT: every time you edit this file, you must create a
+// NEW VERSION of the deployment (Deploy > Manage deployments >
+// pencil icon > Version: New version > Deploy) or your changes
+// will not go live. Making a brand new deployment instead gives
+// you a different URL and will break the app.
+// ============================================================
 
 const SHEET_NAME = "Transactions";
-const HEADERS = ["ID", "Date", "Description", "Category", "Type", "Amount"];
+const HEADERS = ["ID", "Timestamp", "Description", "Amount", "Category", "Type"];
 
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -31,76 +27,82 @@ function getSheet_() {
 }
 
 function jsonOut_(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doGet(e) {
-  const action = (e.parameter.action || "list").toLowerCase();
-  if (action === "list") {
-    return jsonOut_({ entries: listEntries_() });
+  try {
+    const action = (e.parameter && e.parameter.action) || "list";
+    const sheet = getSheet_();
+
+    if (action === "ping") {
+      return jsonOut_({ ok: true, sheet: sheet.getName(), rows: Math.max(sheet.getLastRow() - 1, 0) });
+    }
+
+    if (action === "list") {
+      return jsonOut_({ ok: true, entries: readEntries_(sheet) });
+    }
+
+    return jsonOut_({ ok: false, error: "Unknown action: " + action });
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err) });
   }
-  return jsonOut_({ error: "Unknown action" });
 }
 
 function doPost(e) {
-  let payload;
   try {
-    payload = JSON.parse(e.postData.contents);
+    const payload = JSON.parse(e.postData.contents);
+    const sheet = getSheet_();
+
+    if (payload.action === "add") {
+      const entry = addEntry_(sheet, payload.entry);
+      return jsonOut_({ ok: true, entry });
+    }
+
+    if (payload.action === "delete") {
+      deleteEntry_(sheet, payload.id);
+      return jsonOut_({ ok: true });
+    }
+
+    return jsonOut_({ ok: false, error: "Unknown action: " + payload.action });
   } catch (err) {
-    return jsonOut_({ ok: false, error: "Invalid JSON body" });
+    return jsonOut_({ ok: false, error: String(err) });
   }
-
-  const action = (payload.action || "").toLowerCase();
-
-  if (action === "add") {
-    addEntry_(payload.entry);
-    return jsonOut_({ ok: true });
-  }
-
-  if (action === "delete") {
-    deleteEntry_(payload.id);
-    return jsonOut_({ ok: true });
-  }
-
-  return jsonOut_({ ok: false, error: "Unknown action" });
 }
 
-function listEntries_() {
-  const sheet = getSheet_();
-  const values = sheet.getDataRange().getValues();
-  const rows = values.slice(1); // skip header
-  return rows
-    .filter(r => r[0] !== "" && r[0] !== undefined)
-    .map(r => ({
-      id: String(r[0]),
-      date: new Date(r[1]).toISOString(),
-      description: String(r[2]),
-      category: String(r[3]),
-      type: String(r[4]),
-      amount: Number(r[5])
+function readEntries_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+  return values
+    .filter(row => row[0] !== "")
+    .map(row => ({
+      id: row[0],
+      timestamp: row[1] instanceof Date ? row[1].toISOString() : row[1],
+      description: row[2],
+      amount: row[3],
+      category: row[4],
+      type: row[5],
     }));
 }
 
-function addEntry_(entry) {
-  const sheet = getSheet_();
-  sheet.appendRow([
-    entry.id,
-    entry.date,
-    entry.description,
-    entry.category,
-    entry.type,
-    entry.amount
-  ]);
+function addEntry_(sheet, entry) {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const timestamp = new Date().toISOString();
+  sheet.appendRow([id, timestamp, entry.description, Number(entry.amount), entry.category, entry.type]);
+  return { id, timestamp, description: entry.description, amount: Number(entry.amount), category: entry.category, type: entry.type };
 }
 
-function deleteEntry_(id) {
-  const sheet = getSheet_();
-  const values = sheet.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === String(id)) {
-      sheet.deleteRow(i + 1); // +1 because sheet rows are 1-indexed
-      break;
+function deleteEntry_(sheet, id) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(id)) {
+      sheet.deleteRow(i + 2);
+      return;
     }
   }
 }
