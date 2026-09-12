@@ -1,58 +1,41 @@
-# Passbook — Finance Tracker (Google Sheets backend)
+# Passbook — Finance Tracker (real app, Google Sheets backend)
 
-## Why it was stuck on "Connecting to sheet…"
+## What changed from your original file
+`src/FinanceTracker.jsx` is your component with one change: the data layer.
 
-Your previous deployed script URL returns a **404** right now — the endpoint
-itself isn't reachable, which is why the UI spun forever (it was waiting on a
-response that was never going to arrive). This version fixes that in two ways:
+- `localStorage` is kept as an **instant local cache** and offline fallback.
+- On top of it, the whole app state (accounts, transactions, goals, budgets,
+  theme) now also syncs to a **Google Sheet** through a Google Apps Script
+  Web App, debounced ~800ms after each change.
+- A small sync indicator (cloud icon) sits in the top bar: spinning while
+  connecting/saving, solid green when synced, amber when only local, red when
+  the sheet can't be reached.
 
-1. **A 12-second timeout + visible error banner with a Retry button**, so a
-   dead endpoint shows a clear message instead of an infinite spinner.
-2. **A `ping` action** you can hit directly in a browser tab to test the
-   script in isolation, with no UI involved.
+Because your app's records (accounts, transactions, goals, budgets) each have
+different shapes, the sheet stores **one JSON blob per collection** in a tab
+called `AppData` (Key | Value | UpdatedAt), rather than one rigid column
+layout per entity. It's still a real Google Sheet as your database — you can
+open the `AppData` tab and see/edit the raw JSON per collection — just not
+one-row-per-transaction. Say the word if you'd rather have an actual
+one-row-per-transaction ledger tab instead (doable, just a different backend).
 
-## Setup
-
-1. Open your Google Sheet → **Extensions → Apps Script**.
-2. Delete any existing code, paste in `apps-script/Code.gs`.
-3. **Deploy → New deployment → Web app**
+## 1. Your Apps Script deployment currently 404s
+I tested the URL you sent and it returned a 404, meaning the deployment
+itself isn't reachable. Fix:
+1. Open the Apps Script project bound to your sheet.
+2. Paste in `apps-script/Code.gs` (replacing whatever's there).
+3. **Deploy > Manage deployments > Edit (pencil) > New version > Deploy.**
+   - Type: **Web app**
    - Execute as: **Me**
    - Who has access: **Anyone**
-4. Click Deploy, authorize it, and copy the URL ending in `/exec`.
-5. Paste that URL into `js/app.js` → `CONFIG.SCRIPT_URL`.
-6. Sanity-check it works *before* touching the UI: paste
-   `YOUR_URL/exec?action=ping` straight into a browser address bar. You
-   should see `{"ok":true,"sheet":"Transactions","rows":0}`. If you get a
-   404, a login page, or an HTML error page instead — the deployment is the
-   problem, not the app.
+4. Copy the fresh `/exec` URL it gives you — it can change on redeploy.
+5. Paste it into `SCRIPT_URL` near the top of `src/FinanceTracker.jsx`.
 
-## The #1 gotcha: editing code doesn't update your live URL
+## 2. Where this file lives in your project
+Drop `src/FinanceTracker.jsx` into wherever your existing repo imports it
+from (it's a default export, so `import FinanceTracker from "./FinanceTracker"`
+keeps working as before). Nothing about routing/build config changes.
 
-If you change `Code.gs` later, the `/exec` URL **does not automatically pick
-up the change**. You must go to:
-
-**Deploy → Manage deployments → pencil/edit icon → Version: "New version" → Deploy**
-
-Creating a brand-new deployment instead gives you a *different* URL and will
-silently break the app (it'll keep hitting the old, stale code).
-
-## Files
-
-- `index.html` — structure
-- `css/style.css` — ledger-style theme, doughnut chart, row/entrance animations
-- `js/app.js` — all logic: connection test, CRUD calls, chart drawing, optimistic UI
-- `apps-script/Code.gs` — the backend that reads/writes your `Transactions` sheet tab
-
-## Data model
-
-Sheet tab `Transactions`, columns: `ID | Timestamp | Description | Amount | Category | Type`.
-Created automatically on first `ping` or `list` call if missing.
-
-## Notes
-
-- "Anyone can access" on the Apps Script deployment means anyone with the
-  URL can read/write your sheet. Fine for a personal project; don't reuse
-  this pattern for anything with sensitive multi-user data.
-- All requests use `text/plain` content-type on POST bodies (parsed as JSON
-  server-side) specifically to avoid a CORS preflight, which Apps Script
-  handles unreliably.
+## 3. Re-deploying the Apps Script after edits
+Editing `Code.gs` alone does not update your live `/exec` URL — you must
+create a **New version** under Manage deployments each time.
