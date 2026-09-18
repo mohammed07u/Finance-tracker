@@ -87,7 +87,7 @@ const GUIDE = [
 const STORE_KEY = "finance-tracker-data-v3";
 
 // Paste your Google Apps Script Web App URL here (Deploy > Manage deployments > Web app).
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw1szh3DweTM_1e-kW1RhKyS8_WWqLpW0GcLEkovvYf7nB8giF-0ZSOIhv2--7Kx3QUMA/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzoYYWEWBoq415zOvospF-xQclgLDr-yhkDasIK-5Tlbr7XZFwJTVwdm2iAZkhjM3kMAQ/exec";
 
 // Local cache — used instantly on load and as an offline fallback if the sheet is unreachable.
 function loadLocalCache() { try { const raw = localStorage.getItem(STORE_KEY); if (raw) return JSON.parse(raw); } catch (e) {} return null; }
