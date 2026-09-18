@@ -8,7 +8,8 @@ import {
   BookOpen, Sparkles, ChevronDown, X, LayoutDashboard, ArrowLeftRight, BarChart3, Target,
   Search, Bell, FileText, PieChart as PieIcon, Wallet2, ShoppingCart, Home, Car, Plug,
   ShoppingBag, HeartPulse, Clapperboard, CircleDollarSign, Gift, Percent, Briefcase,
-  MoreVertical, Sun, Moon, Zap, Laptop, Plane, Crown, PlusCircle,
+  Sun, Moon, Zap, Laptop, Plane, Crown, PlusCircle, Menu, Send, CalendarDays, Settings as SettingsIcon,
+  ChevronLeft, ChevronRight, Download, RotateCcw, Flag,
 } from "lucide-react";
 
 /* ---------------- theme tokens ---------------- */
@@ -33,6 +34,7 @@ const GREEN_GRAD = "linear-gradient(135deg, #14B87F 0%, #0C8F63 100%)";
 const BLUE_GRAD = "linear-gradient(135deg, #3B82F6 0%, #2554D8 100%)";
 const RED_GRAD = "linear-gradient(135deg, #F0685C 0%, #D5372F 100%)";
 const PURPLE_GRAD = "linear-gradient(135deg, #9B6BF0 0%, #6C3FD8 100%)";
+const PURPLE_BLUE_GRAD = "linear-gradient(90deg, #9B6BF0 0%, #3B82F6 100%)";
 const CAT_COLORS = ["#F0685C", "#F0B23C", "#E85DA6", "#9B6BF0", "#3BC8E8", "#14B87F", "#3B82F6", "#8B93AC"];
 
 const ThemeCtx = createContext(DARK);
@@ -117,6 +119,20 @@ function ProgressBar({ pct, color }) {
   const T = useT();
   return <div style={{ height: 7, borderRadius: 4, background: T.pillBg, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(100, pct)}%`, background: color, borderRadius: 4 }} /></div>;
 }
+function MountainGoalArt() {
+  return (
+    <svg width="130" height="96" viewBox="0 0 130 96" style={{ margin: "0 auto", display: "block" }}>
+      <defs>
+        <linearGradient id="mg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#9B6BF0" /><stop offset="100%" stopColor="#6C3FD8" /></linearGradient>
+        <linearGradient id="mg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" /><stop offset="100%" stopColor="#2554D8" /></linearGradient>
+      </defs>
+      <polygon points="10,88 48,20 86,88" fill="url(#mg1)" opacity="0.55" />
+      <polygon points="45,88 78,32 112,88" fill="url(#mg2)" opacity="0.85" />
+      <line x1="78" y1="32" x2="78" y2="12" stroke="#E9ECF6" strokeWidth="2" />
+      <polygon points="78,12 96,18 78,24" fill="#F0685C" />
+    </svg>
+  );
+}
 
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -124,8 +140,10 @@ const NAV = [
   { id: "accounts", label: "Accounts", icon: Landmark },
   { id: "budgets", label: "Budgets", icon: PieIcon },
   { id: "goals", label: "Goals", icon: Target },
-  { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "insights", label: "Insights", icon: BarChart3 },
+  { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "guide", label: "Guide", icon: BookOpen },
+  { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
 /* ---------------- app ---------------- */
@@ -138,6 +156,7 @@ export default function FinanceTracker() {
   const [theme, setTheme] = useState("dark");
   const [tab, setTab] = useState("dashboard");
   const [openGuide, setOpenGuide] = useState(null);
+  const [collapsed, setCollapsed] = useState(false);
   const quickAmountRef = useRef(null);
   const firstRun = useRef(true);
 
@@ -238,6 +257,17 @@ export default function FinanceTracker() {
   function deleteGoal(id) { setGoalsList((prev) => prev.filter((g) => g.id !== id)); }
   function addBudget(b) { setBudgets((prev) => [...prev, { id: uid(), ...b }]); }
   function deleteBudget(id) { setBudgets((prev) => prev.filter((b) => b.id !== id)); }
+  function resetAllData() {
+    if (!window.confirm("This will permanently delete all accounts, transactions, budgets and goals. Continue?")) return;
+    setAccounts([]); setTransactions([]); setGoalsList([]); setBudgets([]);
+  }
+  function exportData() {
+    const blob = new Blob([JSON.stringify({ accounts, transactions, goalsList, budgets }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "passbook-data.json"; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const nudgeCount = useMemo(() => {
     let n = 0;
@@ -257,7 +287,7 @@ export default function FinanceTracker() {
     <ThemeCtx.Provider value={T}>
       <div style={{ display: "flex", minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'Inter','Segoe UI',sans-serif" }}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap');
           * { box-sizing: border-box; }
           button { cursor: pointer; font-family: inherit; }
           input, select { font-family: inherit; }
@@ -265,12 +295,13 @@ export default function FinanceTracker() {
           ::-webkit-scrollbar { width: 7px; height: 7px; }
           ::-webkit-scrollbar-thumb { background: #26304C; border-radius: 4px; }
           select option { background: ${T.inputBg}; color: ${T.text}; }
+          .quote-font { font-family: 'Caveat', cursive; }
         `}</style>
 
-        <Sidebar tab={tab} setTab={setTab} />
+        <Sidebar tab={tab} setTab={setTab} collapsed={collapsed} setCollapsed={setCollapsed} />
 
         <div style={{ flex: 1, minWidth: 0, padding: "20px 28px 40px" }}>
-          <TopBar todayLabel={todayLabel} theme={theme} setTheme={setTheme} nudgeCount={nudgeCount} />
+          <TopBar todayLabel={todayLabel} theme={theme} setTheme={setTheme} nudgeCount={nudgeCount} setTab={setTab} resetAllData={resetAllData} />
 
           {tab === "dashboard" && (
             <Dashboard
@@ -285,12 +316,14 @@ export default function FinanceTracker() {
           {tab === "accounts" && <Accounts accounts={accounts} addAccount={addAccount} deleteAccount={deleteAccount} />}
           {tab === "budgets" && <Budgets budgets={budgets} addBudget={addBudget} deleteBudget={deleteBudget} categoryBreakdown={categoryBreakdown} />}
           {tab === "goals" && <Goals goalsList={goalsList} addGoal={addGoal} updateGoal={updateGoal} deleteGoal={deleteGoal} />}
-          {tab === "reports" && (
+          {tab === "insights" && (
             <Reports netWorth={netWorth} byType={byType} savingsRate={savingsRate} emergencyMonths={emergencyMonths}
               investedShare={investedShare} categoryBreakdown={categoryBreakdown} monthIncome={thisMonth.income}
               monthExpense={thisMonth.expense} accounts={accounts} budgets={budgets} />
           )}
+          {tab === "calendar" && <CalendarPage transactions={transactions} accounts={accounts} deleteTransaction={deleteTransaction} />}
           {tab === "guide" && <Guide openGuide={openGuide} setOpenGuide={setOpenGuide} />}
+          {tab === "settings" && <SettingsPage theme={theme} setTheme={setTheme} exportData={exportData} resetAllData={resetAllData} accounts={accounts} transactions={transactions} />}
         </div>
       </div>
     </ThemeCtx.Provider>
@@ -298,68 +331,92 @@ export default function FinanceTracker() {
 }
 
 /* ---------------- sidebar ---------------- */
-function Sidebar({ tab, setTab }) {
+function Sidebar({ tab, setTab, collapsed, setCollapsed }) {
   const T = useT();
+  const width = collapsed ? 76 : 240;
   return (
-    <div style={{ width: 240, flexShrink: 0, background: T.sidebarBg, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", padding: "22px 16px", position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 6px", marginBottom: 26 }}>
-        <div style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg,#3BC8E8,#3B82F6)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 19, color: "#fff" }}>P</div>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 15.5, lineHeight: 1.2 }}>Passbook</div>
-          <div style={{ fontSize: 11, color: T.textSoft }}>Your Finance Tracker</div>
+    <div style={{ width, flexShrink: 0, background: T.sidebarBg, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", padding: "22px 14px", position: "sticky", top: 0, height: "100vh", overflowY: "auto", overflowX: "hidden", transition: "width 0.18s ease" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 2px", marginBottom: 26, justifyContent: collapsed ? "center" : "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg,#3BC8E8,#3B82F6)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 19, color: "#fff", flexShrink: 0 }}>P</div>
+          {!collapsed && (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 15.5, lineHeight: 1.2, whiteSpace: "nowrap" }}>Passbook</div>
+              <div style={{ fontSize: 11, color: T.textSoft, whiteSpace: "nowrap" }}>Your Finance Tracker</div>
+            </div>
+          )}
         </div>
+        {!collapsed && <button onClick={() => setCollapsed(true)} style={{ border: "none", background: "none", color: T.textSoft, padding: 4, flexShrink: 0 }}><Menu size={18} /></button>}
       </div>
+      {collapsed && <button onClick={() => setCollapsed(false)} style={{ border: "none", background: "none", color: T.textSoft, padding: 4, marginBottom: 18, alignSelf: "center" }}><Menu size={18} /></button>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
         {NAV.map((n) => {
           const active = tab === n.id;
           const Icon = n.icon;
           return (
-            <button key={n.id} onClick={() => setTab(n.id)} style={{
-              display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 9,
+            <button key={n.id} onClick={() => setTab(n.id)} title={collapsed ? n.label : undefined} style={{
+              display: "flex", alignItems: "center", gap: 11, padding: collapsed ? "10px 0" : "10px 12px", borderRadius: 9,
               border: "none", background: active ? BLUE : "transparent", color: active ? "#fff" : T.textSoft,
-              fontSize: 13.8, fontWeight: active ? 600 : 500, textAlign: "left",
+              fontSize: 13.8, fontWeight: active ? 600 : 500, textAlign: "left", justifyContent: collapsed ? "center" : "flex-start",
             }}>
-              <Icon size={17} /> {n.label}
+              <Icon size={17} style={{ flexShrink: 0 }} /> {!collapsed && n.label}
             </button>
           );
         })}
       </div>
 
-      <div style={{ borderRadius: 14, padding: "18px 16px", marginTop: 14, background: "linear-gradient(160deg, #16321F 0%, #0D1A12 100%)", border: `1px solid #1E3A28`, color: "#fff" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-          <Crown size={15} color={AMBER} />
-        </div>
-        <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.3, marginBottom: 4 }}>Upgrade Your Habits</div>
-        <div style={{ fontSize: 12, color: "#9FB0A5", lineHeight: 1.5, marginBottom: 12 }}>Track smarter. Save better. Live brighter.</div>
-        <button onClick={() => setTab("guide")} style={{ width: "100%", background: GREEN, color: "#fff", border: "none", borderRadius: 8, padding: "8px 0", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          Let's Grow <ArrowUpRight size={13} />
-        </button>
-      </div>
+      {!collapsed && (
+        <>
+          <div style={{
+            borderRadius: 14, padding: "18px 16px", marginTop: 14, color: "#fff",
+            background: "linear-gradient(160deg, #2A1F0D 0%, #14100A 100%)", border: `1px solid #3A2A10`,
+          }}>
+            <Crown size={17} color={AMBER} style={{ marginBottom: 8 }} />
+            <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.3, marginBottom: 4 }}>Go Premium</div>
+            <div style={{ fontSize: 11.5, color: "#C9B98F", lineHeight: 1.5, marginBottom: 12 }}>Unlock advanced insights, backups, and more.</div>
+            <button onClick={() => alert("Premium features aren't available yet — but the free version keeps everything you add, saved on this device.")} style={{ width: "100%", background: "linear-gradient(90deg,#F0B23C,#E8862A)", color: "#1A1204", border: "none", borderRadius: 8, padding: "8px 0", fontSize: 12.5, fontWeight: 700 }}>Upgrade Now</button>
+          </div>
+          <div style={{ padding: "16px 4px 0", fontSize: 12, color: T.textFaint, fontStyle: "italic", lineHeight: 1.5, textAlign: "center" }} className="quote-font">
+            "A small step today leads to a brighter tomorrow."
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-function TopBar({ todayLabel, theme, setTheme, nudgeCount }) {
+function TopBar({ todayLabel, theme, setTheme, nudgeCount, setTab, resetAllData }) {
   const T = useT();
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", flex: "1 1 320px", maxWidth: 420 }}>
         <Search size={16} color={T.textFaint} />
-        <span style={{ fontSize: 13.5, color: T.textFaint }}>Search transactions, categories...</span>
+        <span style={{ fontSize: 13.5, color: T.textFaint }}>Search transactions, categories, notes...</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 13, color: T.textSoft }}>{todayLabel}</div>
-        <div style={{ display: "flex", background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: 3 }}>
-          <button onClick={() => setTheme("light")} style={{ width: 30, height: 30, borderRadius: 7, border: "none", background: theme === "light" ? BLUE : "transparent", color: theme === "light" ? "#fff" : T.textSoft, display: "flex", alignItems: "center", justifyContent: "center" }}><Sun size={14} /></button>
-          <button onClick={() => setTheme("dark")} style={{ width: 30, height: 30, borderRadius: 7, border: "none", background: theme === "dark" ? BLUE : "transparent", color: theme === "dark" ? "#fff" : T.textSoft, display: "flex", alignItems: "center", justifyContent: "center" }}><Moon size={14} /></button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 13, color: T.textSoft, cursor: "pointer" }} onClick={() => setTab("calendar")}>
+          {todayLabel} <ChevronDown size={13} />
         </div>
-        <div style={{ position: "relative", width: 38, height: 38, borderRadius: 9, background: T.card, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} style={{ width: 38, height: 38, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: T.textSoft }}>
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+        <button onClick={() => setTab("insights")} style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Bell size={16} color={T.textSoft} />
-          {nudgeCount > 0 && <div style={{ position: "absolute", top: -4, right: -4, width: 16, height: 16, borderRadius: "50%", background: RED, color: "#fff", fontSize: 9.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{nudgeCount}</div>}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#3BC8E8,#3B82F6)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "#fff" }}>Y</div>
+          {nudgeCount > 0 && <div style={{ position: "absolute", top: -3, right: -3, width: 16, height: 16, borderRadius: "50%", background: RED, color: "#fff", fontSize: 9.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{nudgeCount}</div>}
+        </button>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setMenuOpen((o) => !o)} style={{ display: "flex", alignItems: "center", gap: 4, border: "none", background: "none" }}>
+            <div style={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#9B6BF0,#3B82F6)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "#fff" }}>Y</div>
+            <ChevronDown size={14} color={T.textSoft} />
+          </button>
+          {menuOpen && (
+            <div style={{ position: "absolute", right: 0, top: 46, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: 6, minWidth: 160, zIndex: 20, boxShadow: "0 12px 28px rgba(0,0,0,0.25)" }}>
+              <button onClick={() => { setTab("settings"); setMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 7, border: "none", background: "none", color: T.text, fontSize: 13 }}>Settings</button>
+              <button onClick={() => { resetAllData(); setMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 7, border: "none", background: "none", color: RED, fontSize: 13 }}>Reset all data</button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -367,7 +424,7 @@ function TopBar({ todayLabel, theme, setTheme, nudgeCount }) {
 }
 
 /* ---------------- dashboard ---------------- */
-function StatCard({ label, value, change, icon: Icon, grad }) {
+function StatCard({ label, value, change, icon: Icon, grad, onClick }) {
   const positive = change !== null && change >= 0;
   return (
     <div style={{ background: grad, borderRadius: 14, padding: "18px 20px", color: "#fff", minHeight: 108, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
@@ -376,7 +433,7 @@ function StatCard({ label, value, change, icon: Icon, grad }) {
           <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,255,255,0.22)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon size={15} /></div>
           <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.95 }}>{label}</span>
         </div>
-        <MoreVertical size={15} style={{ opacity: 0.7 }} />
+        <button onClick={onClick} style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,255,255,0.22)", border: "none", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowUpRight size={13} /></button>
       </div>
       <div>
         <div style={{ fontSize: 23, fontWeight: 800, marginBottom: 4 }}>{fmt(value)}</div>
@@ -449,23 +506,25 @@ function Dashboard({ netWorth, thisMonth, monthNet, incomeChange, expenseChange,
   return (
     <div>
       <div style={{
-        borderRadius: 16, padding: "22px 26px", marginBottom: 22, position: "relative", overflow: "hidden", color: "#fff",
-        backgroundImage: "linear-gradient(100deg, rgba(8,12,26,0.75) 0%, rgba(8,12,26,0.35) 55%, rgba(8,12,26,0.65) 100%), url(https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1400&q=60)",
+        borderRadius: 16, padding: "26px 28px", marginBottom: 22, position: "relative", overflow: "hidden", color: "#fff",
+        backgroundImage: "linear-gradient(100deg, rgba(6,10,22,0.72) 0%, rgba(6,10,22,0.25) 55%, rgba(6,10,22,0.55) 100%), url(https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=1400&q=60)",
         backgroundSize: "cover", backgroundPosition: "center",
-        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20, flexWrap: "wrap",
+        display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap", minHeight: 150,
       }}>
         <div>
-          <div style={{ fontSize: 24, fontWeight: 800 }}>{greetingWord()}, <span style={{ color: "#6EE7C0" }}>You</span> 👋</div>
-          <div style={{ fontSize: 13.5, opacity: 0.9, marginTop: 4 }}>Here's your financial overview for today.</div>
+          <div style={{ fontSize: 28, fontWeight: 800 }}>{greetingWord()},<br /><span style={{ background: "linear-gradient(90deg,#9B6BF0,#3BC8E8)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>You!</span> 👋</div>
+          <div style={{ fontSize: 13.5, opacity: 0.92, marginTop: 8, lineHeight: 1.6 }}>Take control of your money.<br />A better tomorrow starts with smarter decisions today.</div>
         </div>
-        <div style={{ fontSize: 12.5, opacity: 0.9, maxWidth: 220, textAlign: "right", fontStyle: "italic" }}>"A better tomorrow starts with smarter decisions today."</div>
+        <div className="quote-font" style={{ fontSize: 19, opacity: 0.95, maxWidth: 200, textAlign: "right", lineHeight: 1.3 }}>
+          "Discipline today creates freedom tomorrow."
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14, marginBottom: 20 }}>
-        <StatCard label="Current Balance" value={netWorth} change={balanceChange} icon={Wallet2} grad={GREEN_GRAD} />
-        <StatCard label="Total Income" value={thisMonth.income} change={incomeChange} icon={ArrowUpRight} grad={BLUE_GRAD} />
-        <StatCard label="Total Expense" value={thisMonth.expense} change={expenseChange} icon={ArrowDownRight} grad={RED_GRAD} />
-        <StatCard label="Total Savings" value={monthNet} change={savingsChange} icon={PieIcon} grad={PURPLE_GRAD} />
+        <StatCard label="Current Balance" value={netWorth} change={balanceChange} icon={Wallet2} grad={GREEN_GRAD} onClick={() => setTab("accounts")} />
+        <StatCard label="Total Income" value={thisMonth.income} change={incomeChange} icon={ArrowUpRight} grad={BLUE_GRAD} onClick={() => setTab("transactions")} />
+        <StatCard label="Total Expense" value={thisMonth.expense} change={expenseChange} icon={ArrowDownRight} grad={RED_GRAD} onClick={() => setTab("transactions")} />
+        <StatCard label="Total Savings" value={monthNet} change={savingsChange} icon={PieIcon} grad={PURPLE_GRAD} onClick={() => setTab("goals")} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16, marginBottom: 16 }}>
@@ -519,7 +578,7 @@ function Dashboard({ netWorth, thisMonth, monthNet, incomeChange, expenseChange,
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}><PieIcon size={16} color={T.textSoft} /><span style={{ fontSize: 14.5, fontWeight: 700 }}>Spending by Category</span></div>
-            <button onClick={() => setTab("reports")} style={{ border: "none", background: "none", color: BLUE, fontSize: 12.5, fontWeight: 600 }}>View All →</button>
+            <button onClick={() => setTab("insights")} style={{ border: "none", background: "none", color: BLUE, fontSize: 12.5, fontWeight: 600 }}>View All →</button>
           </div>
           {categoryBreakdown.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0" }}>
@@ -575,12 +634,17 @@ function GoalsSummaryCard({ goalsList, setTab }) {
   const T = useT();
   if (goalsList.length === 0) {
     return (
-      <Card style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}><Target size={16} color="#C9A6FF" /><span style={{ fontSize: 14.5, fontWeight: 700 }}>Set a Financial Goal</span></div>
-          <div style={{ fontSize: 12.5, color: T.textSoft, lineHeight: 1.5, marginBottom: 16 }}>Turn your goals into reality with better money habits.</div>
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5, fontWeight: 700 }}><Target size={16} color="#C9A6FF" /> Your Financial Goals</span>
+          <button onClick={() => setTab("goals")} style={{ border: "none", background: "none", color: BLUE, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}><Plus size={12} /> Add Goal</button>
         </div>
-        <button onClick={() => setTab("goals")} style={{ background: PURPLE_GRAD, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>Set Goal <ArrowUpRight size={14} /></button>
+        <MountainGoalArt />
+        <div style={{ textAlign: "center", marginTop: 8 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 3 }}>No goals yet</div>
+          <div style={{ fontSize: 12, color: T.textSoft, marginBottom: 14 }}>Set a goal and make it happen!</div>
+          <button onClick={() => setTab("goals")} style={{ width: "100%", background: PURPLE_BLUE_GRAD, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 13, fontWeight: 600 }}>Create Your First Goal</button>
+        </div>
       </Card>
     );
   }
@@ -628,19 +692,21 @@ function QuickAdd({ accounts, addTransaction, quickAmountRef }) {
     setAmount(""); setNote(""); setError("");
   }
 
+  const CatIcon = CATEGORY_ICONS[category] || CircleDollarSign;
+
   return (
     <Card>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 22, height: 22, borderRadius: 6, background: GREEN, display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={13} color="#fff" /></div>
+          <div style={{ width: 22, height: 22, borderRadius: 6, background: PURPLE_BLUE_GRAD, display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={13} color="#fff" /></div>
           <span style={{ fontSize: 14.5, fontWeight: 700 }}>Quick Add Transaction</span>
         </div>
         <span style={{ fontSize: 10.5, color: T.textFaint, border: `1px solid ${T.border}`, borderRadius: 5, padding: "2px 6px" }}>Ctrl+N</span>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 3, marginBottom: 14, background: T.pillBg, borderRadius: 9, padding: 3 }}>
         {["expense", "income"].map((k) => (
-          <button key={k} onClick={() => setKind(k)} style={{ flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 12.5, fontWeight: 600, border: "none", background: kind === k ? (k === "income" ? GREEN : RED) : T.pillBg, color: kind === k ? "#fff" : T.textSoft }}>{k === "income" ? "Income" : "Expense"}</button>
+          <button key={k} onClick={() => setKind(k)} style={{ flex: 1, padding: "8px 0", borderRadius: 7, fontSize: 12.5, fontWeight: 600, border: "none", background: kind === k ? PURPLE_BLUE_GRAD : "transparent", color: kind === k ? "#fff" : T.textSoft }}>{k === "income" ? "Income" : "Expense"}</button>
         ))}
       </div>
 
@@ -648,14 +714,24 @@ function QuickAdd({ accounts, addTransaction, quickAmountRef }) {
         <Field label="Description"><input style={inputStyle} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Groceries, Salary, Rent..." /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label="Amount"><input ref={quickAmountRef} style={inputStyle} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" /></Field>
-          <Field label="Category"><select style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>{(kind === "expense" ? EXPENSE_CATS : INCOME_CATS).map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
+          <Field label="Category">
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <IconCircle Icon={CatIcon} bg={T.pillBg} fg={PURPLE} size={30} />
+              <select style={{ ...inputStyle, flex: 1 }} value={category} onChange={(e) => setCategory(e.target.value)}>{(kind === "expense" ? EXPENSE_CATS : INCOME_CATS).map((c) => <option key={c} value={c}>{c}</option>)}</select>
+            </div>
+          </Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Field label="Date"><input style={inputStyle} type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-          <Field label="Account"><select style={inputStyle} value={accountId} onChange={(e) => setAccountId(e.target.value)}>{accounts.length === 0 && <option value="">Add an account</option>}{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+          <Field label="Account">
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <IconCircle Icon={Wallet} bg={T.pillBg} fg={BLUE} size={30} />
+              <select style={{ ...inputStyle, flex: 1 }} value={accountId} onChange={(e) => setAccountId(e.target.value)}>{accounts.length === 0 && <option value="">Add an account</option>}{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+            </div>
+          </Field>
         </div>
         {error && <div style={{ color: RED, fontSize: 12 }}>{error}</div>}
-        <button onClick={submit} style={{ background: RED_GRAD, color: "#fff", border: "none", borderRadius: 8, padding: "11px 0", fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Plus size={15} /> Add Transaction</button>
+        <button onClick={submit} style={{ background: PURPLE_BLUE_GRAD, color: "#fff", border: "none", borderRadius: 8, padding: "12px 0", fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}><Send size={14} /> Add Transaction</button>
       </div>
     </Card>
   );
@@ -780,7 +856,7 @@ function Transactions({ accounts, transactions, addTransaction, deleteTransactio
         <Card style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
             {["expense", "income"].map((k) => (
-              <button key={k} onClick={() => setKind(k)} style={{ padding: "7px 16px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: `1px solid ${T.border}`, background: kind === k ? (k === "income" ? GREEN : RED) : "transparent", color: kind === k ? "#fff" : T.textSoft }}>{k === "income" ? "Money in" : "Money out"}</button>
+              <button key={k} onClick={() => setKind(k)} style={{ padding: "7px 16px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: `1px solid ${T.border}`, background: kind === k ? PURPLE_BLUE_GRAD : "transparent", color: kind === k ? "#fff" : T.textSoft }}>{k === "income" ? "Money in" : "Money out"}</button>
             ))}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -911,7 +987,13 @@ function Goals({ goalsList, addGoal, updateGoal, deleteGoal }) {
       )}
 
       {goalsList.length === 0 ? (
-        <Card><EmptyState icon={Target} text="No goals yet. Add one for a laptop, a trip, or an emergency fund, and track your progress toward it." /></Card>
+        <Card>
+          <MountainGoalArt />
+          <div style={{ textAlign: "center", marginTop: 10 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 4 }}>No goals yet</div>
+            <div style={{ fontSize: 13, color: T.textSoft }}>Add one for a laptop, a trip, or an emergency fund, and track your progress toward it.</div>
+          </div>
+        </Card>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
           {goalsList.map((g) => {
@@ -938,7 +1020,7 @@ function Goals({ goalsList, addGoal, updateGoal, deleteGoal }) {
   );
 }
 
-/* ---------------- reports page ---------------- */
+/* ---------------- reports/insights page ---------------- */
 function Reports({ netWorth, byType, savingsRate, emergencyMonths, investedShare, categoryBreakdown, monthIncome, monthExpense, accounts, budgets }) {
   const T = useT();
   const nudges = [];
@@ -973,7 +1055,7 @@ function Reports({ netWorth, byType, savingsRate, emergencyMonths, investedShare
 
   return (
     <div>
-      <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 4 }}>Reports</div>
+      <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 4 }}>Insights</div>
       <div style={{ fontSize: 13.5, color: T.textSoft, marginBottom: 18 }}>A quick read on how your money is doing right now.</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
         <MetricCard label="Savings rate, this month" value={savingsRate === null ? "—" : `${savingsRate.toFixed(0)}%`} />
@@ -1018,6 +1100,123 @@ function Reports({ netWorth, byType, savingsRate, emergencyMonths, investedShare
 function MetricCard({ label, value }) {
   const T = useT();
   return <Card style={{ padding: "14px 16px" }}><div style={{ fontSize: 12, color: T.textSoft, marginBottom: 6 }}>{label}</div><div style={{ fontSize: 22, fontWeight: 800 }}>{value}</div></Card>;
+}
+
+/* ---------------- calendar page ---------------- */
+function CalendarPage({ transactions, accounts, deleteTransaction }) {
+  const T = useT();
+  const [cursor, setCursor] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const byDay = useMemo(() => {
+    const m = {};
+    transactions.forEach((t) => {
+      const k = dateKey(t.date);
+      if (!m[k]) m[k] = { income: 0, expense: 0, count: 0 };
+      m[k][t.kind] += Number(t.amount);
+      m[k].count++;
+    });
+    return m;
+  }, [transactions]);
+
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const selectedTxns = selectedDay ? transactions.filter((t) => dateKey(t.date) === selectedDay) : [];
+
+  return (
+    <div>
+      <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 4 }}>Calendar</div>
+      <div style={{ fontSize: 13.5, color: T.textSoft, marginBottom: 18 }}>See which days had money moving, at a glance.</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <button onClick={() => setCursor(new Date(year, month - 1, 1))} style={{ border: `1px solid ${T.border}`, background: "none", color: T.text, borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronLeft size={16} /></button>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>{cursor.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</div>
+            <button onClick={() => setCursor(new Date(year, month + 1, 1))} style={{ border: `1px solid ${T.border}`, background: "none", color: T.text, borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}><ChevronRight size={16} /></button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 6 }}>
+            {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => <div key={d} style={{ textAlign: "center", fontSize: 11, color: T.textSoft, fontWeight: 600 }}>{d}</div>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
+            {cells.map((d, i) => {
+              if (!d) return <div key={i} />;
+              const key = dateKey(new Date(year, month, d));
+              const info = byDay[key];
+              const isToday = key === dateKey(new Date());
+              const isSelected = key === selectedDay;
+              return (
+                <button key={i} onClick={() => setSelectedDay(key)} style={{
+                  aspectRatio: "1", borderRadius: 8, border: isSelected ? `1.5px solid ${BLUE}` : isToday ? `1.5px solid ${T.textFaint}` : `1px solid ${T.border}`,
+                  background: isSelected ? "rgba(59,130,246,0.12)" : T.cardAlt, color: T.text, fontSize: 12.5, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: 2,
+                }}>
+                  {d}
+                  {info && (
+                    <span style={{ display: "flex", gap: 2 }}>
+                      {info.income > 0 && <span style={{ width: 5, height: 5, borderRadius: "50%", background: GREEN }} />}
+                      {info.expense > 0 && <span style={{ width: 5, height: 5, borderRadius: "50%", background: RED }} />}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 12 }}>{selectedDay ? new Date(selectedDay).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }) : "Select a day"}</div>
+          {!selectedDay ? (
+            <EmptyState icon={CalendarDays} text="Click a date on the calendar to see what happened that day." />
+          ) : selectedTxns.length === 0 ? (
+            <EmptyState icon={FileText} text="No transactions on this day." />
+          ) : (
+            selectedTxns.map((t) => <TxnRow key={t.id} t={t} onDelete={() => deleteTransaction(t)} accounts={accounts} />)
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- settings page ---------------- */
+function SettingsPage({ theme, setTheme, exportData, resetAllData, accounts, transactions }) {
+  const T = useT();
+  return (
+    <div>
+      <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 4 }}>Settings</div>
+      <div style={{ fontSize: 13.5, color: T.textSoft, marginBottom: 18 }}>Appearance and data controls for this device.</div>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 12 }}>Appearance</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setTheme("light")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: theme === "light" ? BLUE : "transparent", color: theme === "light" ? "#fff" : T.text, fontSize: 13, fontWeight: 600 }}><Sun size={15} /> Light</button>
+          <button onClick={() => setTheme("dark")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: theme === "dark" ? BLUE : "transparent", color: theme === "dark" ? "#fff" : T.text, fontSize: 13, fontWeight: 600 }}><Moon size={15} /> Dark</button>
+        </div>
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 4 }}>Your data</div>
+        <div style={{ fontSize: 12.5, color: T.textSoft, marginBottom: 14 }}>Everything is stored privately in this browser only — {accounts.length} account{accounts.length !== 1 ? "s" : ""}, {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}.</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={exportData} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.text, fontSize: 13, fontWeight: 600 }}><Download size={15} /> Export as JSON</button>
+          <button onClick={resetAllData} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 8, border: "none", background: RED_GRAD, color: "#fff", fontSize: 13, fontWeight: 600 }}><RotateCcw size={15} /> Reset all data</button>
+        </div>
+      </Card>
+
+      <Card>
+        <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 6 }}>About Passbook</div>
+        <div style={{ fontSize: 12.5, color: T.textSoft, lineHeight: 1.6 }}>A personal finance tracker for bank accounts, share market holdings, and any other platform you hold money on. No account, no server — everything lives on this device unless you export it yourself.</div>
+      </Card>
+    </div>
+  );
 }
 
 /* ---------------- guide page ---------------- */
