@@ -157,6 +157,7 @@ export default function FinanceTracker() {
   const [tab, setTab] = useState("dashboard");
   const [openGuide, setOpenGuide] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const quickAmountRef = useRef(null);
   const firstRun = useRef(true);
 
@@ -268,6 +269,10 @@ export default function FinanceTracker() {
     a.href = url; a.download = "passbook-data.json"; a.click();
     URL.revokeObjectURL(url);
   }
+  function handleSearchChange(value) {
+    setSearchQuery(value);
+    if (value.trim() && tab !== "transactions") setTab("transactions");
+  }
 
   const nudgeCount = useMemo(() => {
     let n = 0;
@@ -301,7 +306,7 @@ export default function FinanceTracker() {
         <Sidebar tab={tab} setTab={setTab} collapsed={collapsed} setCollapsed={setCollapsed} />
 
         <div style={{ flex: 1, minWidth: 0, padding: "20px 28px 40px" }}>
-          <TopBar todayLabel={todayLabel} theme={theme} setTheme={setTheme} nudgeCount={nudgeCount} setTab={setTab} resetAllData={resetAllData} />
+          <TopBar todayLabel={todayLabel} theme={theme} setTheme={setTheme} nudgeCount={nudgeCount} setTab={setTab} resetAllData={resetAllData} searchQuery={searchQuery} onSearchChange={handleSearchChange} />
 
           {tab === "dashboard" && (
             <Dashboard
@@ -312,7 +317,7 @@ export default function FinanceTracker() {
               goalsList={goalsList} setTab={setTab} quickAmountRef={quickAmountRef}
             />
           )}
-          {tab === "transactions" && <Transactions accounts={accounts} transactions={transactions} addTransaction={addTransaction} deleteTransaction={deleteTransaction} />}
+          {tab === "transactions" && <Transactions accounts={accounts} transactions={transactions} addTransaction={addTransaction} deleteTransaction={deleteTransaction} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
           {tab === "accounts" && <Accounts accounts={accounts} addAccount={addAccount} deleteAccount={deleteAccount} />}
           {tab === "budgets" && <Budgets budgets={budgets} addBudget={addBudget} deleteBudget={deleteBudget} categoryBreakdown={categoryBreakdown} />}
           {tab === "goals" && <Goals goalsList={goalsList} addGoal={addGoal} updateGoal={updateGoal} deleteGoal={deleteGoal} />}
@@ -386,14 +391,24 @@ function Sidebar({ tab, setTab, collapsed, setCollapsed }) {
   );
 }
 
-function TopBar({ todayLabel, theme, setTheme, nudgeCount, setTab, resetAllData }) {
+function TopBar({ todayLabel, theme, setTheme, nudgeCount, setTab, resetAllData, searchQuery, onSearchChange }) {
   const T = useT();
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", flex: "1 1 320px", maxWidth: 420 }}>
-        <Search size={16} color={T.textFaint} />
-        <span style={{ fontSize: 13.5, color: T.textFaint }}>Search transactions, categories, notes...</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.card, border: `1px solid ${searchQuery ? BLUE : T.border}`, borderRadius: 10, padding: "10px 14px", flex: "1 1 320px", maxWidth: 420 }}>
+        <Search size={16} color={T.textFaint} style={{ flexShrink: 0 }} />
+        <input
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search transactions, categories, notes..."
+          style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.text, fontSize: 13.5 }}
+        />
+        {searchQuery && (
+          <button onClick={() => onSearchChange("")} style={{ border: "none", background: "none", color: T.textFaint, display: "flex", alignItems: "center", flexShrink: 0, padding: 2 }}>
+            <X size={14} />
+          </button>
+        )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", fontSize: 13, color: T.textSoft, cursor: "pointer" }} onClick={() => setTab("calendar")}>
@@ -496,6 +511,72 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
+function HeroScene() {
+  return (
+    <svg viewBox="0 0 1600 220" preserveAspectRatio="xMidYMid slice" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+      <defs>
+        <linearGradient id="heroSky" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#070A1C" />
+          <stop offset="30%" stopColor="#241C4E" />
+          <stop offset="55%" stopColor="#4E3072" />
+          <stop offset="78%" stopColor="#8C4C70" />
+          <stop offset="100%" stopColor="#DB9058" />
+        </linearGradient>
+        <radialGradient id="heroGlow" cx="83%" cy="62%" r="48%">
+          <stop offset="0%" stopColor="#FFB877" stopOpacity="0.55" />
+          <stop offset="60%" stopColor="#FFB877" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#FFB877" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="mtnBack" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#5E4C8E" />
+          <stop offset="100%" stopColor="#3D3369" />
+        </linearGradient>
+        <linearGradient id="mtnMid" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#302459" />
+          <stop offset="100%" stopColor="#231A44" />
+        </linearGradient>
+        <linearGradient id="fadeLeft" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#06070F" stopOpacity="0.88" />
+          <stop offset="42%" stopColor="#06070F" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#06070F" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      <rect width="1600" height="220" fill="url(#heroSky)" />
+      <rect width="1600" height="220" fill="url(#heroGlow)" />
+
+      <g fill="#fff" opacity="0.55">
+        <circle cx="120" cy="28" r="1.3" /><circle cx="260" cy="52" r="1" /><circle cx="410" cy="18" r="1.5" />
+        <circle cx="560" cy="45" r="1" /><circle cx="700" cy="35" r="1.2" /><circle cx="850" cy="60" r="1" />
+      </g>
+
+      <path d="M0,150 L120,92 L230,138 L340,78 L460,142 L600,88 L740,148 L900,98 L1050,152 L1220,92 L1400,148 L1600,108 L1600,220 L0,220 Z" fill="url(#mtnBack)" opacity="0.55" />
+      <path d="M0,180 L150,118 L300,168 L470,108 L650,172 L820,122 L1000,178 L1180,128 L1350,175 L1600,138 L1600,220 L0,220 Z" fill="url(#mtnMid)" opacity="0.8" />
+      <path d="M0,220 L0,163 L100,118 L220,172 L360,128 L500,188 L620,148 L640,220 Z" fill="#0A0E1F" />
+
+      <g fill="#FFC98A">
+        <circle cx="740" cy="184" r="2.2" opacity="0.85" /><circle cx="790" cy="191" r="1.6" opacity="0.7" />
+        <circle cx="860" cy="179" r="2" opacity="0.8" /><circle cx="915" cy="194" r="1.4" opacity="0.6" />
+        <circle cx="962" cy="182" r="1.8" opacity="0.75" />
+      </g>
+
+      <path d="M1170,220 L1170,138 L1258,88 L1340,150 L1600,104 L1600,220 Z" fill="#0A0E1F" />
+      <g fill="#080B18">
+        <path d="M1398,150 L1410,120 L1422,150 Z" /><path d="M1412,155 L1426,121 L1440,155 Z" />
+        <path d="M1428,150 L1442,123 L1456,150 Z" /><path d="M1458,155 L1472,125 L1486,155 Z" />
+      </g>
+      <g>
+        <rect x="1288" y="117" width="48" height="29" fill="#12162A" />
+        <path d="M1282,117 L1312,96 L1343,117 Z" fill="#0B0E1E" />
+        <rect x="1299" y="127" width="10" height="15" fill="#FFC98A" opacity="0.9" />
+        <rect x="1318" y="127" width="10" height="15" fill="#FFC98A" opacity="0.75" />
+      </g>
+
+      <rect width="1600" height="220" fill="url(#fadeLeft)" />
+    </svg>
+  );
+}
+
 function Dashboard({ netWorth, thisMonth, monthNet, incomeChange, expenseChange, balanceChange, savingsChange, transactions, categoryBreakdown, accounts, addTransaction, deleteTransaction, goalsList, setTab, quickAmountRef }) {
   const T = useT();
   const recent = transactions.slice(0, 4);
@@ -506,16 +587,16 @@ function Dashboard({ netWorth, thisMonth, monthNet, incomeChange, expenseChange,
   return (
     <div>
       <div style={{
-        borderRadius: 16, padding: "26px 28px", marginBottom: 22, position: "relative", overflow: "hidden", color: "#fff",
-        backgroundImage: "linear-gradient(100deg, rgba(6,10,22,0.72) 0%, rgba(6,10,22,0.25) 55%, rgba(6,10,22,0.55) 100%), url(https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=1400&q=60)",
-        backgroundSize: "cover", backgroundPosition: "center",
-        display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap", minHeight: 150,
+        borderRadius: 16, marginBottom: 22, position: "relative", overflow: "hidden", color: "#fff",
+        border: "1px solid rgba(255,255,255,0.06)", minHeight: 168,
+        display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap", padding: "26px 28px",
       }}>
-        <div>
-          <div style={{ fontSize: 28, fontWeight: 800 }}>{greetingWord()},<br /><span style={{ background: "linear-gradient(90deg,#9B6BF0,#3BC8E8)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>You!</span> 👋</div>
+        <HeroScene />
+        <div style={{ position: "relative", zIndex: 1, background: "rgba(6,9,20,0.32)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", borderRadius: 14, padding: "16px 20px", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ fontSize: 28, fontWeight: 800 }}>{greetingWord()},<br /><span style={{ background: "linear-gradient(90deg,#B98BFF,#5DDCF0)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>You!</span> 👋</div>
           <div style={{ fontSize: 13.5, opacity: 0.92, marginTop: 8, lineHeight: 1.6 }}>Take control of your money.<br />A better tomorrow starts with smarter decisions today.</div>
         </div>
-        <div className="quote-font" style={{ fontSize: 19, opacity: 0.95, maxWidth: 200, textAlign: "right", lineHeight: 1.3 }}>
+        <div className="quote-font" style={{ position: "relative", zIndex: 1, fontSize: 19, opacity: 0.95, maxWidth: 210, textAlign: "right", lineHeight: 1.3, textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
           "Discipline today creates freedom tomorrow."
         </div>
       </div>
@@ -820,7 +901,7 @@ function Accounts({ accounts, addAccount, deleteAccount }) {
 }
 
 /* ---------------- transactions page ---------------- */
-function Transactions({ accounts, transactions, addTransaction, deleteTransaction }) {
+function Transactions({ accounts, transactions, addTransaction, deleteTransaction, searchQuery = "", setSearchQuery }) {
   const T = useT();
   const inputStyle = useInputStyle();
   const [showForm, setShowForm] = useState(false);
@@ -843,12 +924,34 @@ function Transactions({ accounts, transactions, addTransaction, deleteTransactio
     setAmount(""); setNote(""); setError(""); setShowForm(false);
   }
 
-  const filtered = transactions.filter((t) => filter === "all" ? true : t.kind === filter);
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = transactions
+    .filter((t) => (filter === "all" ? true : t.kind === filter))
+    .filter((t) => {
+      if (!q) return true;
+      const accountName = accounts.find((a) => a.id === t.accountId)?.name || "";
+      return (
+        t.category.toLowerCase().includes(q) ||
+        (t.note || "").toLowerCase().includes(q) ||
+        accountName.toLowerCase().includes(q) ||
+        String(t.amount).includes(q)
+      );
+    });
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <div style={{ fontSize: 19, fontWeight: 800 }}>Transactions</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ fontSize: 19, fontWeight: 800 }}>
+          Transactions
+          {q && (
+            <span style={{ fontSize: 12.5, fontWeight: 500, color: T.textSoft, marginLeft: 10 }}>
+              — {filtered.length} result{filtered.length !== 1 ? "s" : ""} for "{searchQuery}"
+              {setSearchQuery && (
+                <button onClick={() => setSearchQuery("")} style={{ marginLeft: 8, border: "none", background: "none", color: BLUE, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Clear</button>
+              )}
+            </span>
+          )}
+        </div>
         <button onClick={() => setShowForm((s) => !s)} style={{ display: "flex", alignItems: "center", gap: 6, background: BLUE, color: "#fff", border: "none", borderRadius: 8, padding: "9px 14px", fontSize: 13.5, fontWeight: 600 }}>{showForm ? <X size={14} /> : <Plus size={14} />} {showForm ? "Cancel" : "Add transaction"}</button>
       </div>
 
@@ -880,7 +983,7 @@ function Transactions({ accounts, transactions, addTransaction, deleteTransactio
       </div>
 
       <Card style={{ padding: "6px 22px" }}>
-        {filtered.length === 0 ? <EmptyState icon={FileText} text="Nothing here yet." /> : filtered.map((t) => <TxnRow key={t.id} t={t} onDelete={() => deleteTransaction(t)} accounts={accounts} />)}
+        {filtered.length === 0 ? <EmptyState icon={FileText} text={q ? `No transactions match "${searchQuery}".` : "Nothing here yet."} /> : filtered.map((t) => <TxnRow key={t.id} t={t} onDelete={() => deleteTransaction(t)} accounts={accounts} />)}
       </Card>
     </div>
   );
