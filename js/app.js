@@ -4,7 +4,7 @@
 // "Who has access" must be set to "Anyone".
 // ============================================================
 const CONFIG = {
-  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzVdjej2Rw5zAbYjw5l7jP5BaOiZjiiDFSRIfpZcZnp88OYLFfFQOjGgl2UrC1Kr96-xQ/exec",
+  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwsAdGuA9cZ7HKUU3x2GyS0BrIHU1smYOFIErMPEeIJstDsyrM2hOSda2gma2-VKTWB/exec",
   REQUEST_TIMEOUT_MS: 12000,
 };
 
